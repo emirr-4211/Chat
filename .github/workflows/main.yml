@@ -16,55 +16,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Extract Android Project
+        run: |
+          unzip -q Chat-GitHub-Actions.zip -d extracted
+          find extracted -name settings.gradle
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Accept Android Licenses
-        shell: bash
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "SDK Manager not found!"
-            exit 1
-          fi
-
           yes | "$SDKMANAGER" --licenses || true
 
       - name: Install Android SDK
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)
-
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Find Project
-        shell: bash
         run: |
-          FILE=$(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
+          FILE=$(find extracted -name settings.gradle -o -name settings.gradle.kts | head -n 1)
 
           if [ -z "$FILE" ]; then
             echo "Gradle project not found!"
-            find . -maxdepth 5 -type f
             exit 1
           fi
 
           DIR=$(dirname "$FILE")
           echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
-
-          echo "Found project: $DIR"
+          echo "Found: $DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.2'
 
-      - name: Build APK
+      - name: Build Release APK
         run: |
           cd "$PROJECT_DIR"
           gradle --no-daemon --stacktrace :app:assembleRelease
@@ -73,6 +64,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Chat-release-apk
-          path: '**/app/build/outputs/apk/release/*.apk'
+          path: extracted/**/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 7
