@@ -26,12 +26,7 @@ jobs:
         run: |
           SDKMANAGER="$(find "${ANDROID_HOME}/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
 
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found!"
-            exit 1
-          fi
-
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          yes | "$SDKMANAGER" --licenses || true
 
           "$SDKMANAGER" --install \
             "platform-tools" \
@@ -43,7 +38,16 @@ jobs:
         with:
           gradle-version: '8.2'
 
+      - name: Verify Project
+        run: |
+          cd Chat
+          ls -la
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+
       - name: Build Release APK
+        working-directory: Chat
         run: |
           gradle --no-daemon --stacktrace :app:assembleRelease
 
@@ -51,6 +55,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Chat-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: Chat/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 7
