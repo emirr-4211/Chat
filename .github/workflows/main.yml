@@ -13,48 +13,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Accept Android SDK Licenses
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK Licenses
         run: |
-          SDKMANAGER="$(find "${ANDROID_HOME}/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          yes | sdkmanager --licenses || true
 
-          yes | "$SDKMANAGER" --licenses || true
-
-          "$SDKMANAGER" --install \
+          sdkmanager \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
+
+      - name: Find Gradle Project
+        run: |
+          PROJECT_FILE=$(find . -name settings.gradle -o -name settings.gradle.kts | head -n 1)
+
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "Gradle project not found!"
+            find . -maxdepth 4 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+          echo "Project found: $PROJECT_DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.2'
 
-      - name: Verify Project
-        run: |
-          cd Chat
-          ls -la
-          test -f settings.gradle
-          test -f build.gradle
-          test -f app/build.gradle
-
       - name: Build Release APK
-        working-directory: Chat
         run: |
+          cd "$PROJECT_DIR"
           gradle --no-daemon --stacktrace :app:assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Chat-release-apk
-          path: Chat/app/build/outputs/apk/release/*.apk
+          path: '**/app/build/outputs/apk/release/*.apk'
           if-no-files-found: error
           retention-days: 7
